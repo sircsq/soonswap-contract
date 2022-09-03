@@ -1894,7 +1894,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.663Z",
+  "updatedAt": "2022-09-03T12:01:49.561Z",
   "devdoc": {
     "author": "Modified from Dappsys (https://github.com/dapphub/ds-auth/blob/master/src/auth.sol)",
     "kind": "dev",

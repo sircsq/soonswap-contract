@@ -1688,7 +1688,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.680Z",
+  "updatedAt": "2022-09-03T12:01:49.584Z",
   "devdoc": {
     "author": "Modified from OpenZeppelin (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeCast.sol)",
     "kind": "dev",

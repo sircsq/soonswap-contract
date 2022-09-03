@@ -5260,7 +5260,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.678Z",
+  "updatedAt": "2022-09-03T12:01:49.582Z",
   "devdoc": {
     "author": "Modified from Dappsys V2 (https://github.com/dapp-org/dappsys-v2/blob/main/src/math.sol) and ABDK (https://github.com/abdk-consulting/abdk-libraries-solidity/blob/master/ABDKMath64x64.sol)",
     "kind": "dev",

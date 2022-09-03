@@ -2567,7 +2567,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.681Z",
+  "updatedAt": "2022-09-03T12:01:49.585Z",
   "devdoc": {
     "author": "Modified from Gnosis (https://github.com/gnosis/gp-v2-contracts/blob/main/src/contracts/libraries/GPv2SafeERC20.sol)",
     "details": "Use with caution! Some functions in this library knowingly create dirty bits at the destination of the free memory pointer.",

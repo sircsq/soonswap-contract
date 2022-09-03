@@ -1657,7 +1657,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.678Z",
+  "updatedAt": "2022-09-03T12:01:49.581Z",
   "devdoc": {
     "author": "Modified from 0xSequence (https://github.com/0xsequence/create3/blob/master/contracts/Create3.sol)",
     "kind": "dev",

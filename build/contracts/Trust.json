@@ -842,7 +842,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.9",
-  "updatedAt": "2022-09-02T11:37:45.664Z",
+  "updatedAt": "2022-09-03T12:01:49.562Z",
   "devdoc": {
     "author": "Inspired by Dappsys V2 (https://github.com/dapp-org/dappsys-v2/blob/main/src/auth.sol)",
     "kind": "dev",
