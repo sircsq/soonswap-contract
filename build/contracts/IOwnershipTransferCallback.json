@@ -1,0 +1,146 @@
+{
+  "contractName": "IOwnershipTransferCallback",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "oldOwner",
+          "type": "address"
+        }
+      ],
+      "name": "onOwnershipTransfer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "metadata": "{\"compiler\":{\"version\":\"0.8.16+commit.07a7930e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"oldOwner\",\"type\":\"address\"}],\"name\":\"onOwnershipTransfer\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project:/contracts/lib/IOwnershipTransferCallback.sol\":\"IOwnershipTransferCallback\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"project:/contracts/lib/IOwnershipTransferCallback.sol\":{\"keccak256\":\"0xde525ebc5c03d56e223c7ec16436763e8432b0f90e040eac58eb0123c172c0f7\",\"license\":\"AGPL-3.0\",\"urls\":[\"bzz-raw://575c817eb62547db9d69cfca2978127bb458752d551f884039a81e67fc11c191\",\"dweb:/ipfs/QmX2Fco7R9DZq7swEdD7zDi2CxdDrFgDPPi2JrnNSuMN2U\"]}},\"version\":1}",
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "immutableReferences": {},
+  "generatedSources": [],
+  "deployedGeneratedSources": [],
+  "sourceMap": "",
+  "deployedSourceMap": "",
+  "source": "// SPDX-License-Identifier: AGPL-3.0\n\npragma solidity ^0.8.4;\n\ninterface IOwnershipTransferCallback {\n  function onOwnershipTransfer(address oldOwner) external;\n}",
+  "sourcePath": "/Users/brett/workSpace/NFTSea/nftsea-contract/contracts/lib/IOwnershipTransferCallback.sol",
+  "ast": {
+    "absolutePath": "project:/contracts/lib/IOwnershipTransferCallback.sol",
+    "exportedSymbols": {
+      "IOwnershipTransferCallback": [
+        8676
+      ]
+    },
+    "id": 8677,
+    "license": "AGPL-3.0",
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 8670,
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".4"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "38:23:33"
+      },
+      {
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "IOwnershipTransferCallback",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "fullyImplemented": false,
+        "id": 8676,
+        "linearizedBaseContracts": [
+          8676
+        ],
+        "name": "IOwnershipTransferCallback",
+        "nameLocation": "73:26:33",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "functionSelector": "a741b468",
+            "id": 8675,
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "onOwnershipTransfer",
+            "nameLocation": "113:19:33",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 8673,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 8672,
+                  "mutability": "mutable",
+                  "name": "oldOwner",
+                  "nameLocation": "141:8:33",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 8675,
+                  "src": "133:16:33",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 8671,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "133:7:33",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "132:18:33"
+            },
+            "returnParameters": {
+              "id": 8674,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "159:0:33"
+            },
+            "scope": 8676,
+            "src": "104:56:33",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "scope": 8677,
+        "src": "63:99:33",
+        "usedErrors": []
+      }
+    ],
+    "src": "38:124:33"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.8.16+commit.07a7930e.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "3.4.9",
+  "updatedAt": "2022-09-02T11:37:45.671Z",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  }
+}
