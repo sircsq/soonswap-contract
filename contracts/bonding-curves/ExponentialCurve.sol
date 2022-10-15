@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import {ICurve} from "./ICurve.sol";
 import {CurveErrorCodes} from "./CurveErrorCodes.sol";
@@ -18,24 +18,14 @@ contract ExponentialCurve is ICurve, CurveErrorCodes {
     /**
         @dev See {ICurve-validateDelta}
      */
-    function validateDelta(uint128 delta)
-        external
-        pure
-        override
-        returns (bool)
-    {
+    function validateDelta(uint128 delta) external  pure   override   returns (bool)  {
         return delta > FixedPointMathLib.WAD;
     }
 
     /**
         @dev See {ICurve-validateSpotPrice}
      */
-    function validateSpotPrice(uint128 newSpotPrice)
-        external
-        pure
-        override
-        returns (bool)
-    {
+    function validateSpotPrice(uint128 newSpotPrice)  external  pure override  returns (bool) {
         return newSpotPrice >= MIN_PRICE;
     }
 
@@ -48,8 +38,7 @@ contract ExponentialCurve is ICurve, CurveErrorCodes {
         uint256 numItems,
         uint256 feeMultiplier,
         uint256 protocolFeeMultiplier
-    )
-        external
+    )   external
         pure
         override
         returns (

@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity >=0.7.0;
+// SPDX-License-Identifier: AGPL-3.0
+pragma solidity ^0.8.17;
 
 /// @notice Library for converting between addresses and bytes32 values.
 /// @author Original work by Transmissions11 (https://github.com/transmissions11)

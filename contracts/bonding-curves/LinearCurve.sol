@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import {ICurve} from "./ICurve.sol";
 import {CurveErrorCodes} from "./CurveErrorCodes.sol";
@@ -42,16 +42,16 @@ contract LinearCurve is ICurve, CurveErrorCodes {
         uint256 feeMultiplier,
         uint256 protocolFeeMultiplier
     )
-        external
-        pure
-        override
-        returns (
-            Error error,
-            uint128 newSpotPrice,
-            uint128 newDelta,
-            uint256 inputValue,
-            uint256 protocolFee
-        )
+    external
+    pure
+    override
+    returns (
+        Error error,
+        uint128 newSpotPrice,
+        uint128 newDelta,
+        uint256 inputValue,
+        uint256 protocolFee
+    )
     {
         // We only calculate changes for buying 1 or more NFTs
         if (numItems == 0) {
@@ -78,10 +78,10 @@ contract LinearCurve is ICurve, CurveErrorCodes {
         // This is equal to n*(buy spot price) + (delta)*(n*(n-1))/2
         // because we have n instances of buy spot price, and then we sum up from delta to (n-1)*delta
         inputValue =
-            numItems *
-            buySpotPrice +
-            (numItems * (numItems - 1) * delta) /
-            2;
+        numItems *
+        buySpotPrice +
+        (numItems * (numItems - 1) * delta) /
+        2;
 
         // Account for the protocol fee, a flat percentage of the buy amount
         protocolFee = inputValue.fmul(
@@ -112,16 +112,16 @@ contract LinearCurve is ICurve, CurveErrorCodes {
         uint256 feeMultiplier,
         uint256 protocolFeeMultiplier
     )
-        external
-        pure
-        override
-        returns (
-            Error error,
-            uint128 newSpotPrice,
-            uint128 newDelta,
-            uint256 outputValue,
-            uint256 protocolFee
-        )
+    external
+    pure
+    override
+    returns (
+        Error error,
+        uint128 newSpotPrice,
+        uint128 newDelta,
+        uint256 outputValue,
+        uint256 protocolFee
+    )
     {
         // We only calculate changes for selling 1 or more NFTs
         if (numItems == 0) {
@@ -151,10 +151,10 @@ contract LinearCurve is ICurve, CurveErrorCodes {
         // (spot price) + (spot price - 1*delta) + (spot price - 2*delta) + ... + (spot price - (n-1)*delta)
         // This is equal to n*(spot price) - (delta)*(n*(n-1))/2
         outputValue =
-            numItems *
-            spotPrice -
-            (numItems * (numItems - 1) * delta) /
-            2;
+        numItems *
+        spotPrice -
+        (numItems * (numItems - 1) * delta) /
+        2;
 
         // Account for the protocol fee, a flat percentage of the sell amount
         protocolFee = outputValue.fmul(

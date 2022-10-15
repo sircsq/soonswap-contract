@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import {CurveErrorCodes} from "./CurveErrorCodes.sol";
 
@@ -43,10 +43,7 @@ interface ICurve {
         uint256 numItems,
         uint256 feeMultiplier,
         uint256 protocolFeeMultiplier
-    )
-        external
-        view
-        returns (
+    )  external  view  returns (
             CurveErrorCodes.Error error,
             uint128 newSpotPrice,
             uint128 newDelta,
@@ -74,10 +71,7 @@ interface ICurve {
         uint256 numItems,
         uint256 feeMultiplier,
         uint256 protocolFeeMultiplier
-    )
-        external
-        view
-        returns (
+    ) external view  returns (
             CurveErrorCodes.Error error,
             uint128 newSpotPrice,
             uint128 newDelta,
