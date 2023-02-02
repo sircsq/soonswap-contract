@@ -2,9 +2,9 @@
 pragma solidity ^0.8.17;
 
 import './interfaces/ISoonswapFactory.sol';
-import './SoonswapPair.sol';
+import './SoonPair.sol';
 
-contract SoonswapFactory is ISoonswapFactory {
+contract SoonFactory is ISoonswapFactory {
     address public feeTo;
     address public orderCenter;
     address public feeToSetter;
@@ -28,7 +28,6 @@ contract SoonswapFactory is ISoonswapFactory {
         orderCenter = _orderCenter;
     }
 
-
     function createPair(
         address tokenA,
         address tokenB,
@@ -38,12 +37,13 @@ contract SoonswapFactory is ISoonswapFactory {
         address feeToken
     ) external returns (address pair) {
         require(tokenA != tokenB, 'Soonswap: IDENTICAL_ADDRESSES');
-        pair = address(new SoonswapPair{salt : bytes32(keccak256(abi.encodePacked(tokenA, tokenB, block.timestamp)))}());
-        ISoonswapPair(pair).initialize(tokenA, tokenB, swapFee, true, nftContract, orderCenter, feeToken, feeTo);
+
+        pair =  address(new SoonPair{salt: bytes32(keccak256(abi.encodePacked(tokenA, tokenB,block.timestamp)))}());
+        ISoonPair(pair).initialize(tokenA, tokenB, swapFee, false, nftContract,orderCenter,feeToken,feeTo);
         getPair[tokenA][tokenB].push(pair);
         getNftPair[nftContract].push(pair);
         allPairs.push(pair);
-        emit PairCreated(tokenA, tokenB, swapFee, bilateral, nftContract, feeToken, pair, allPairs.length);
+        emit PairCreated(tokenA, tokenB, swapFee, bilateral, nftContract,feeToken, pair, allPairs.length);
     }
 
     function setFeeTo(address _feeTo) external {
@@ -56,12 +56,12 @@ contract SoonswapFactory is ISoonswapFactory {
         feeToSetter = _feeToSetter;
     }
 
-    function getFeeTo() external view returns (address){
+    function getFeeTo() external view returns (address ){
         return feeTo;
     }
 
-    function getPairs(address tokenA, address tokenB) external view returns (address[] memory pair){
-        return getPair[tokenA][tokenB];
-    }
+     function getPairs(address tokenA, address tokenB) external view returns (address[] memory pair){
+       return  getPair[tokenA][tokenB];
+     }
 
 }

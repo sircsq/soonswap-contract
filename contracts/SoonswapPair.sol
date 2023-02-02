@@ -1,32 +1,38 @@
-// SPDX-License-Identifier: AGPL-3.0
-pragma solidity  ^0.8.17;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
 
-import './interfaces/ISoonswapPair.sol';
-import './SoonswapERC20.sol';
-import './libraries/Math.sol';
-import './libraries/UQ112x112.sol';
-import './interfaces/IERC20.sol';
-import './interfaces/ISoonswapFactory.sol';
-import './interfaces/ISoonswapCallee.sol';
+import {ArrayUtils} from './utils/ArrayUtils.sol';
+import {ISoonswapPair} from './interfaces/ISoonswapPair.sol';
+import {SoonswapERC20} from './SoonswapERC20.sol';
+import {IERC20} from  './interfaces/IERC20.sol';
+import {IERC721} from  './interfaces/IERC721.sol';
+import {IERC721Receiver} from  './interfaces/IERC721Receiver.sol';
+import {Math} from './libraries/Math.sol';
+import {TransferLib} from './libraries/TransferLib.sol';
+import {ISoonswapFactory} from './interfaces/ISoonswapFactory.sol';
+import {SoonswapOrderCenter} from  "./SoonswapOrderCenter.sol";
 
-contract SoonswapPair is ISoonswapPair, SoonswapERC20 {
-    using SafeMath  for uint;
-    using UQ112x112 for uint224;
-
-    uint public constant MINIMUM_LIQUIDITY = 10 ** 3;
-    bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
+contract SoonswapPair is ISoonswapPair,IERC721Receiver, SoonswapERC20 {
 
     address public factory;
+    address public orderCenter;
     address public token0;
     address public token1;
+    address public nftContract;
+    address public feeToken;
+    uint8   public swapFee;
+    bool public bilateral = true;
 
-    uint112 private reserve0;           // uses single storage slot, accessible via getReserves
-    uint112 private reserve1;           // uses single storage slot, accessible via getReserves
-    uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves
+    uint256 public buyOrderId;
+    uint256 public sellOrderId;
 
-    uint public price0CumulativeLast;
-    uint public price1CumulativeLast;
-    uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
+    address public feeTo;
+
+    uint256 private reserve0;
+    uint256 private reserve1;
+    uint32  private blockTimestampLast;
+
+    uint256[] public nfts;
 
     uint private unlocked = 1;
     modifier lock() {
@@ -36,186 +42,324 @@ contract SoonswapPair is ISoonswapPair, SoonswapERC20 {
         unlocked = 1;
     }
 
-    function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
+    constructor() SoonswapERC20("LpToken", "LPTOKEN"){
+        factory = msg.sender;
+    }
+
+    function getReserves() public view returns (uint256 _reserve0, uint256 _reserve1, uint32 _blockTimestampLast) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
         _blockTimestampLast = blockTimestampLast;
     }
 
-    function _safeTransfer(address token, address to, uint value) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), 'Soonswap: TRANSFER_FAILED');
+    function getSellPrice() public view returns (uint256) {
+        require(bilateral, 'Soonswap: BILATERAL_IS_FALSE');
+        if(reserve1 < 1){
+            return 0;
+        }
+        return ((1000-swapFee) * reserve0)/(reserve1*1000 + 1000);
     }
 
-    event Mint(address indexed sender, uint amount0, uint amount1);
-    event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
-    event Swap(
-        address indexed sender,
-        uint amount0In,
-        uint amount1In,
-        uint amount0Out,
-        uint amount1Out,
-        address indexed to
-    );
-    event Sync(uint112 reserve0, uint112 reserve1);
-
-    constructor() public {
-        factory = msg.sender;
+    function getBuyPrice() public view returns (uint256) {
+        require(bilateral, 'Soonswap: BILATERAL_IS_FALSE');
+        if(reserve1 < 2){
+            return 0;
+        }
+        return ((1000+swapFee) * reserve0)/(reserve1*1000 - 1000);
     }
 
-    // called once by the factory at time of deployment
-    function initialize(address _token0, address _token1) external {
+    function initialize(
+        address _token0,
+        address _token1,
+        uint8 _swapFee,
+        bool _bilateral,
+        address _nftContract,
+        address _orderCenter,
+        address _feeToken,
+        address _feeTo
+    ) external {
         require(msg.sender == factory, 'Soonswap: FORBIDDEN');
-        // sufficient check
         token0 = _token0;
         token1 = _token1;
+        swapFee = _swapFee;
+        nftContract = _nftContract;
+        feeToken = _feeToken;
+        feeTo = _feeTo;
+        bilateral = _bilateral;
+        orderCenter = _orderCenter;
     }
 
-    // update reserves and, on the first call per block, price accumulators
-    function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
-        require(balance0 <= uint112(- 1) && balance1 <= uint112(- 1), 'Soonswap: OVERFLOW');
-        uint32 blockTimestamp = uint32(block.timestamp % 2 ** 32);
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast;
-        // overflow is desired
-        if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
-            // * never overflows, and + overflow is desired
-            price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
-            price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
+    function addLiquidity(
+        uint256[] calldata _tokenIds,
+        uint256 _tokenAmount
+    )payable public virtual lock returns (uint256 liquidity){
+        require(bilateral, 'Soonswap: BILATERAL_IS_FALSE_DONT_ADDLIQUIDITY');
+        bool isOrder = false;
+        if(reserve1 == 0){
+            isOrder = true;
         }
-        reserve0 = uint112(balance0);
-        reserve1 = uint112(balance1);
-        blockTimestampLast = blockTimestamp;
+        // a/b = c/d    token >= reserve0 * nft/ reserve1
+        uint _nftCount = _tokenIds.length;
+        require((_nftCount * reserve0) <= (reserve1 * _tokenAmount), 'Soonswap: NFT<->TOKEN_RATIO_ERROR');
+
+        for (uint i = 0; i < _tokenIds.length; i++) {
+            IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenIds[i]);
+            ArrayUtils.addOnlyValue(nfts,_tokenIds[i]);
+        }
+        if (feeToken != address(0)) {
+            IERC20(feeToken).transferFrom(msg.sender, address(this), _tokenAmount);
+        } else {
+            require(_tokenAmount == msg.value, 'Soonswap: _tokenAmount == msg.value');
+        }
+
+        uint256 _totalSupply = totalSupply();
+        uint256 _liquidity = 0;
+        if(_totalSupply > 0 ){
+            _liquidity = (_nftCount * _totalSupply) / reserve1 ;
+        }else{
+            _liquidity = Math.sqrt( _nftCount * _tokenAmount ) * (10**18);
+        }
+        require(_liquidity > 0, 'Soonswap: _liquidity > 0');
+        _mint(msg.sender, _liquidity);
+        _update();
+        uint256[] memory _prices;
+        _prices = new uint256[](1);
+        _prices[0] = getBuyPrice();
+         if(isOrder && getBuyPrice() > 0){
+             (bool _state,uint256 _orderId) = _creatBuyOrder(_prices);
+             require(_state, 'Soonswap: CREAT_BUY_ORDER_FAIL');
+             buyOrderId = _orderId;
+             uint256 nftIndex =  rand(nfts.length);
+             uint256[]  memory _nfts;
+             _nfts = new uint256[](1);
+             _nfts[0] = nfts[nftIndex];
+             _prices[0] = getSellPrice();
+             if(_prices[0] > 0){
+                 (bool _sellState,uint256 _sellOrderId) = _creatSellOrder(_prices,_nfts);
+                 require(_sellState, 'Soonswap: CREAT_SELL_ORDER_FAIL');
+                 sellOrderId = _sellOrderId;
+             }
+         }
+        emit addLiquidityEvent(msg.sender, _tokenIds, _tokenAmount, _liquidity);
+        return _liquidity;
+    }
+
+    function removeLiquidity(uint256 lpAmount)payable external virtual lock returns (uint256 _nftAmount,uint256 _tokenAmount){
+        require(bilateral, 'Soonswap: BILATERAL_IS_FALSE_DONT_REMOVELIQUIDITY');
+        uint256 _totalSupply = totalSupply();
+         _tokenAmount = reserve0 * lpAmount / _totalSupply;
+        _nftAmount = reserve1 * lpAmount / _totalSupply;
+        require(_tokenAmount > 0, 'Soonswap: _tokenAmount > 0');
+        if (feeToken != address(0)) {
+            TransferLib.approve(feeToken, msg.sender, _tokenAmount);
+            TransferLib.safeTransfer(feeToken, msg.sender, _tokenAmount);
+        } else {
+            (bool success,) = payable(msg.sender).call{ value : _tokenAmount, gas : 20000 }("");
+            require(success , 'Soonswap: Failure to pay ETH');
+        }
+        uint256[] memory _tokenIds = new uint256[](_nftAmount);
+        if(_nftAmount > 0){
+            for (uint i = 0; i < _nftAmount; i++) {
+                uint256  _tokenId =  IERC721(nftContract).tokenOfOwnerByIndex(address(this),0); //取第一个;
+                IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenId);
+                _tokenIds[i] = _tokenId;
+                ArrayUtils.removeByValue(nfts,_tokenId);
+            }
+        }
+        _burn(msg.sender,lpAmount);
+        _update();
+        if(reserve1 == 0){
+            SoonswapOrderCenter.BuyOrder memory _oldBuyOrder = SoonswapOrderCenter(orderCenter).getBuyOrders(nftContract,buyOrderId);
+            _oldBuyOrder.buyOrderTime = block.timestamp;
+            _oldBuyOrder.prices = new uint256[](0);
+            _oldBuyOrder.totalMoney = 0;
+            SoonswapOrderCenter(orderCenter).updateBuyOrders(buyOrderId,_oldBuyOrder);
+
+            SoonswapOrderCenter.SellOrder memory _oldSellOrder = SoonswapOrderCenter(orderCenter).getSellOrders(nftContract,sellOrderId);
+            _oldSellOrder.sellOrderTime = block.timestamp;
+            _oldSellOrder.nfts = new uint256[](0);
+            _oldSellOrder.prices = new uint256[](0);
+            SoonswapOrderCenter(orderCenter).updateSellOrders(sellOrderId,_oldSellOrder);
+        }
+        emit removeLiquidityEvent(msg.sender, _tokenIds, _tokenAmount, lpAmount);
+    }
+
+    function balanceETH()public view returns (uint256 ){
+           return address(address(this)).balance;
+    }
+
+    function _update() private {
+        if(feeToken != address(0)){
+            reserve0 = uint256(IERC20(feeToken).balanceOf(address(this)));
+        }else{
+            reserve0 = address(address(this)).balance;
+        }
+        reserve1 = uint256(IERC721(nftContract).balanceOf(address(this)));
+        blockTimestampLast = uint32(block.timestamp % 2 ** 32);
         emit Sync(reserve0, reserve1);
     }
 
-    // if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
-    function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
-        address feeTo = ISoonswapFactory(factory).feeTo();
-        feeOn = feeTo != address(0);
-        uint _kLast = kLast;
-        // gas savings
-        if (feeOn) {
-            if (_kLast != 0) {
-                uint rootK = Math.sqrt(uint(_reserve0).mul(_reserve1));
-                uint rootKLast = Math.sqrt(_kLast);
-                if (rootK > rootKLast) {
-                    uint numerator = totalSupply.mul(rootK.sub(rootKLast));
-                    uint denominator = rootK.mul(5).add(rootKLast);
-                    uint liquidity = numerator / denominator;
-                    if (liquidity > 0) _mint(feeTo, liquidity);
+
+    function trading(Trading memory _trading)external returns (bool){
+        require(orderCenter == msg.sender, 'Soonswap: Only orderCenter trading !');
+        if(_trading.tradType == 1){
+
+            uint256 _price  = _trading.txPrice *  (1000 - swapFee) / 1000;
+            require(_price > 0, 'Soonswap: _price > 0');
+            uint256 _fee = 0 ;
+            if(bilateral){
+                _fee = _trading.txPrice *  swapFee * 20 / 100000;
+            }else{
+                _fee = _trading.txPrice *  swapFee  / 1000;
+            }
+            if(feeToken != address(0)){
+                TransferLib.approve(feeToken, feeTo, _fee);
+                TransferLib.safeTransfer(feeToken, feeTo, _fee);
+                TransferLib.approve(feeToken, _trading.to,_price);
+                TransferLib.safeTransfer(feeToken, _trading.to,_price);
+                if(_trading.txPrice < _trading.orderPrice){
+                    TransferLib.approve(feeToken, _trading.from,_trading.orderPrice - _trading.txPrice);
+                    TransferLib.safeTransfer(feeToken, _trading.from,_trading.orderPrice - _trading.txPrice);
+                }
+            }else{
+                (bool feeSuccess,) = payable(feeTo).call{ value : _fee, gas : 20000 }("");
+                require(feeSuccess , 'Soonswap: Fee failure to pay ETH');
+
+                (bool success,) = payable(_trading.to).call{ value : _trading.txPrice, gas : 20000 }("");
+                require(success , 'Soonswap: Failure to pay ETH');
+                if(_trading.txPrice < _trading.orderPrice){
+                    (bool paySuccess,) = payable(_trading.from).call{ value : _trading.orderPrice - _trading.txPrice, gas : 20000 }("");
+                    require(paySuccess , 'Soonswap: Refund payment ETH failed');
                 }
             }
-        } else if (_kLast != 0) {
-            kLast = 0;
+        }else if(_trading.tradType == 2){
+            IERC721(nftContract).approve(_trading.to, _trading.nftId);
+            IERC721(nftContract).safeTransferFrom(_trading.from, _trading.to, _trading.nftId);
+            ArrayUtils.removeByValue(nfts,_trading.nftId);
         }
+        _update();
+        emit tradingEvent(_trading.orderId,address(this),_trading.from, _trading.to,_trading.orderPrice , _trading.txPrice, _trading.nftId, _trading.tradType);
+        return true;
     }
 
-    // this low-level function should be called from a contract which performs important safety checks
-    function mint(address to) external lock returns (uint liquidity) {
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
-        // gas savings
-        uint balance0 = IERC20(token0).balanceOf(address(this));
-        uint balance1 = IERC20(token1).balanceOf(address(this));
-        uint amount0 = balance0.sub(_reserve0);
-        uint amount1 = balance1.sub(_reserve1);
+    function swap(uint256[] memory _tokenAmounts, uint256[] memory _tokenIds)payable external lock {
+        require(bilateral, 'SoonswapPair: BILATERAL_IS_NOT_TRUE');
+        require(_tokenAmounts[0] > 0 || _tokenIds[0] > 0, 'SoonswapPair: INSUFFICIENT_OUTPUT_AMOUNT');
+        uint256 _price  = 0;
+        address  _feeTo = ISoonswapFactory(factory).getFeeTo();
+        if(_tokenAmounts.length > 0 && _tokenAmounts[0] > 1){
+            for (uint i = 0; i < _tokenAmounts.length; i++) {
+                _price = getBuyPrice();
+                require(_price > 0, 'SoonswapPair: _price > 0');
+                require(_price <= _tokenAmounts[i], 'SoonswapPair.swap: _price <= _tokenAmount');
+               // uint256 _allAmount =  _price * (1000 + swapFee ) /1000;
+                uint256 _feeAmount = ( _price *  swapFee * 20 ) / 100000;
 
-        bool feeOn = _mintFee(_reserve0, _reserve1);
-        uint _totalSupply = totalSupply;
-        // gas savings, must be defined here since totalSupply can update in _mintFee
-        if (_totalSupply == 0) {
-            liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
-            _mint(address(0), MINIMUM_LIQUIDITY);
-            // permanently lock the first MINIMUM_LIQUIDITY tokens
-        } else {
-            liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
+                if (feeToken != address(0)) {
+                    IERC20(feeToken).transferFrom(msg.sender, address(this), _price - _feeAmount);
+                    TransferLib.approve(feeToken, _feeTo, _feeAmount);
+                    IERC20(feeToken).transferFrom(msg.sender, _feeTo, _feeAmount);
+                } else {
+                    (bool success,) = payable(_feeTo).call{ value : _feeAmount, gas : 20000 }("");
+                    require(success , 'Soonswap: Failure to pay ETH');
+                }
+
+                uint256 nftIndex =  rand(nfts.length);
+                uint256  _tokenIdOne = nfts[nftIndex];
+                IERC721(nftContract).approve(msg.sender, _tokenIdOne);
+                IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenIdOne);
+                ArrayUtils.removeByValue(nfts,_tokenIdOne);
+                emit Swap(msg.sender, _tokenAmounts[i], _tokenIdOne, _tokenAmounts[i], _tokenIdOne);
+                _update();
+            }
+        }else if (_tokenIds.length > 0 && _tokenIds[0] > 0){
+            for (uint i = 0; i < _tokenIds.length; i++) {
+                _price = getSellPrice();
+                require(_price > 0, 'SoonswapPair.swap: _price > 0');
+                IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenIds[i]);
+                ArrayUtils.addOnlyValue(nfts,_tokenIds[i]);
+                uint256 _sellAmount =  _price * (1000 - swapFee ) /1000;
+                uint256 _feeAmount = ( _price *  swapFee * 20 ) / 100000;
+                if (feeToken != address(0)) {
+                    TransferLib.approve(feeToken, _feeTo , _feeAmount);
+                    TransferLib.approve(feeToken, msg.sender, _sellAmount);
+                    TransferLib.safeTransfer(feeToken, msg.sender, _sellAmount);
+                    TransferLib.safeTransfer(feeToken, _feeTo, _feeAmount);
+                } else {
+                    (bool success,) = payable(msg.sender).call{ value : _sellAmount, gas : 20000 }("");
+                    require(success , 'Soonswap: Failure to pay ETH');
+                    (bool feeSuccess,) = payable(_feeTo).call{ value : _feeAmount, gas : 20000 }("");
+                    require(feeSuccess , 'Soonswap: Fee failure to pay ETH');
+                }
+                emit Swap(msg.sender, _price, _tokenIds[i], _sellAmount, _tokenIds[i]);
+                _update();
+            }
         }
-        require(liquidity > 0, 'Soonswap: INSUFFICIENT_LIQUIDITY_MINTED');
-        _mint(to, liquidity);
-
-        _update(balance0, balance1, _reserve0, _reserve1);
-        if (feeOn) kLast = uint(reserve0).mul(reserve1);
-        // reserve0 and reserve1 are up-to-date
-        emit Mint(msg.sender, amount0, amount1);
+       SoonswapOrderCenter.BuyOrder memory _oldBuyOrder = SoonswapOrderCenter(orderCenter).getBuyOrders(nftContract,buyOrderId);
+       _oldBuyOrder.buyOrderTime = block.timestamp;
+       _oldBuyOrder.prices[0] = getBuyPrice();
+       _oldBuyOrder.totalMoney = _oldBuyOrder.prices[0];
+       SoonswapOrderCenter(orderCenter).updateBuyOrders(buyOrderId,_oldBuyOrder);
+        SoonswapOrderCenter.SellOrder memory _oldSellOrder = SoonswapOrderCenter(orderCenter).getSellOrders(nftContract,sellOrderId);
+        _oldSellOrder.sellOrderTime = block.timestamp;
+        uint256 _nftIndex =  rand(nfts.length);
+        _oldSellOrder.nfts[0] = nfts[_nftIndex];
+        _oldSellOrder.prices[0] = getSellPrice();
+        SoonswapOrderCenter(orderCenter).updateSellOrders(sellOrderId,_oldSellOrder);
     }
 
-    // this low-level function should be called from a contract which performs important safety checks
-    function burn(address to) external lock returns (uint amount0, uint amount1) {
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
-        // gas savings
-        address _token0 = token0;
-        // gas savings
-        address _token1 = token1;
-        // gas savings
-        uint balance0 = IERC20(_token0).balanceOf(address(this));
-        uint balance1 = IERC20(_token1).balanceOf(address(this));
-        uint liquidity = balanceOf[address(this)];
+    function _creatBuyOrder(uint256[] memory buyPrices) private  returns (bool _state,uint256 ){
 
-        bool feeOn = _mintFee(_reserve0, _reserve1);
-        uint _totalSupply = totalSupply;
-        // gas savings, must be defined here since totalSupply can update in _mintFee
-        amount0 = liquidity.mul(balance0) / _totalSupply;
-        // using balances ensures pro-rata distribution
-        amount1 = liquidity.mul(balance1) / _totalSupply;
-        // using balances ensures pro-rata distribution
-        require(amount0 > 0 && amount1 > 0, 'Soonswap: INSUFFICIENT_LIQUIDITY_BURNED');
-        _burn(address(this), liquidity);
-        _safeTransfer(_token0, to, amount0);
-        _safeTransfer(_token1, to, amount1);
-        balance0 = IERC20(_token0).balanceOf(address(this));
-        balance1 = IERC20(_token1).balanceOf(address(this));
-
-        _update(balance0, balance1, _reserve0, _reserve1);
-        if (feeOn) kLast = uint(reserve0).mul(reserve1);
-        // reserve0 and reserve1 are up-to-date
-        emit Burn(msg.sender, amount0, amount1, to);
+        uint256 buyPricesSum  =  ArrayUtils.arraySum(buyPrices);
+        uint256  _newOrderId = SoonswapOrderCenter(orderCenter).getBuyOrderId(nftContract);
+        SoonswapOrderCenter.BuyOrder memory _buyOrder = SoonswapOrderCenter.BuyOrder({
+                                                                buyOrderId : _newOrderId,
+                                                                buyOrderTime : block.timestamp,
+                                                                nftContract : nftContract,
+                                                                feeToken : feeToken,
+                                                                swapFee : swapFee,
+                                                                pair : address(this),
+                                                                user : msg.sender,
+                                                                prices : buyPrices,
+                                                                states : new bool[](buyPrices.length),
+                                                                totalMoney : buyPricesSum,
+                                                                bilateral : true
+                                                        });
+        bool  _result = SoonswapOrderCenter(orderCenter).addBuyOrders(_newOrderId,_buyOrder);
+        return (_result,_newOrderId);
     }
 
-    // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
-        require(amount0Out > 0 || amount1Out > 0, 'Soonswap: INSUFFICIENT_OUTPUT_AMOUNT');
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
-        // gas savings
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Soonswap: INSUFFICIENT_LIQUIDITY');
-
-        uint balance0;
-        uint balance1;
-        {// scope for _token{0,1}, avoids stack too deep errors
-            address _token0 = token0;
-            address _token1 = token1;
-            require(to != _token0 && to != _token1, 'Soonswap: INVALID_TO');
-            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
-            // optimistically transfer tokens
-            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
-            // optimistically transfer tokens
-            if (data.length > 0) ISoonswapCallee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
-            balance0 = IERC20(_token0).balanceOf(address(this));
-            balance1 = IERC20(_token1).balanceOf(address(this));
-        }
-        uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
-        uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
-        require(amount0In > 0 || amount1In > 0, 'Soonswap: INSUFFICIENT_INPUT_AMOUNT');
-        {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
-            uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
-            require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Soonswap: K');
-        }
-
-        _update(balance0, balance1, _reserve0, _reserve1);
-        emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+    function _creatSellOrder(uint256[] memory sellPrices,uint256[] memory sellNfts) private  returns(bool _state,uint256 _orderId){
+        uint256  _sellOrderId = SoonswapOrderCenter(orderCenter).getSellOrderId(nftContract);
+        SoonswapOrderCenter.SellOrder memory _sellOrder = SoonswapOrderCenter.SellOrder({
+                                                                    sellOrderId : _sellOrderId,
+                                                                    sellOrderTime : block.timestamp,
+                                                                    nftContract : nftContract,
+                                                                    feeToken : feeToken,
+                                                                    swapFee : swapFee,
+                                                                    pair : address(this),
+                                                                    user : msg.sender,
+                                                                    nfts : sellNfts,
+                                                                    states : new bool[](sellNfts.length),
+                                                                    prices : sellPrices,
+                                                                    bilateral : true
+                                                        });
+        bool  _result =  SoonswapOrderCenter(orderCenter).addSellOrders(_sellOrderId,_sellOrder);
+        return (_result,_sellOrderId);
     }
 
-    // force balances to match reserves
-    function skim(address to) external lock {
-        address _token0 = token0;
-        // gas savings
-        address _token1 = token1;
-        // gas savings
-        _safeTransfer(_token0, to, IERC20(_token0).balanceOf(address(this)).sub(reserve0));
-        _safeTransfer(_token1, to, IERC20(_token1).balanceOf(address(this)).sub(reserve1));
+    function rand(uint256 _length) private view returns(uint256) {
+        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp)));
+        return (random%_length);
     }
 
-    // force reserves to match balances
-    function sync() external lock {
-        _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1);
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes memory
+    ) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }

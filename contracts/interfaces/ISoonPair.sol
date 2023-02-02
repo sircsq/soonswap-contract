@@ -2,24 +2,7 @@
 pragma solidity = 0.8.17;
 
 
-interface ISoonswapPair {
-
-    event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to);
-
-    event addLiquidityEvent(
-        address indexed sender,
-        uint256[] nfts,
-        uint256 tokenAmount,
-        uint256 liquidity
-    );
-
-    event removeLiquidityEvent(
-        address indexed sender,
-        uint256[] nfts,
-        uint256 tokenAmount,
-        uint256 liquidity
-    );
+interface ISoonPair {
 
     event depositToTokenEvent(
         address indexed sender,
@@ -35,7 +18,6 @@ interface ISoonswapPair {
         uint256[] buyPrices
     );
 
-
     event depositToNFTEvent(
         address indexed sender,
         uint256  indexed orderId,
@@ -48,14 +30,6 @@ interface ISoonswapPair {
         uint256  indexed orderId,
         uint256[] nfts,
         uint256[] sellPrices
-    );
-
-    event Swap(
-        address indexed sender,
-        uint256 tokenAmount,
-        uint256 tokenId,
-        uint256 tokenAmountOut,
-        uint256 tokenIdOut
     );
 
     event tradingEvent(
@@ -93,7 +67,6 @@ interface ISoonswapPair {
 
     function getReserves() external view returns (uint256 reserve0, uint256 reserve1, uint32 blockTimestampLast);
 
-    // 操作接口;
     function initialize(
         address _token0,
         address _token1,
@@ -105,11 +78,34 @@ interface ISoonswapPair {
         address _feeTo
     ) external;
 
-    function trading(Trading memory trading) external returns (bool);
+    function trading(Trading memory trading) payable external returns (bool);
 
-    function addLiquidity(uint256[] calldata _tokenIds, uint256 tokenAmount) payable external returns (uint256 liquidity);
 
-    function removeLiquidity(uint256 lpAmount) payable external returns (uint256 _nftAmount, uint256 _tokenAmount);
+    function depositToToken(
+        uint256[] calldata buyPrices
+    ) payable external returns (uint256 _orderId);
 
-    function swap(uint256[] memory _tokenAmounts, uint256[] memory _tokenIds)payable external;
+    function editToToken(
+        uint256 buyOrderId,
+        uint256[] calldata buyPrices
+    ) payable external returns (bool result);
+
+    function depositToNFT(
+        uint256[] calldata sellNfts,
+        uint256[] calldata sellPrices
+    ) external returns (uint256 depositToNFTId);
+
+    function editToNFT(
+        uint256 sellOrderId,
+        uint256[] calldata sellNfts,
+        uint256[] calldata sellPrices
+    ) external returns (bool result);
+
+    function exchange(
+        uint256[] memory _tokenAmounts,
+        uint256[] memory _tokenIds,
+        uint256 _orderId,
+        uint256 _txType
+    )payable external;
+
 }
